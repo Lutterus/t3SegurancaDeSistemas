@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.Arrays;
 import java.util.Base64;
 
 import javax.crypto.Cipher;
@@ -16,9 +15,9 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public class Main {
-	public static byte[] S;
-	public static byte[] IV;
-	public static byte[] mensagem;
+	public static byte[] S = new byte[16];
+	public static byte[] IV = new byte[16];
+	public static byte[] mensagem = null;;
 
 	public static void main(String[] args) throws Exception {
 		System.out.println();
@@ -79,24 +78,29 @@ public class Main {
 		String mensagemDoProfessor = "204C34209F8176DD45982714FAE2F0D6A2F32B9E881CA412996755E726C442CB693EBA83690384273C53E30CA1158B5B644585E5E83CA9B12DB2E6D527C891ECF27BA9E7AB7C006C9E773CA8115FFCE5A72B4B7EA3C57C90C7D02FD2EC64906B5CE2D74365E8E867298E49E692C36DB7";
 		System.out.println("mensagemDoProfessor: " + mensagemDoProfessor);
 		System.out.println();
+		// mensagemDoProfessor = "C849E80E7CC8487E36132423E6B7EFB2";
 
 		// separacao dos artefatos
 		// obtem os valores para o cipher, obtem o S, o IV e MENSAGEM
+		System.out.println("dados obtidos da separacao (IV e mensagem em hexa): ");
 		separacao(mensagemDoProfessor, sCompleto);
 
 		// Decifrar a mensagem (ja passando a mensagem em byte) e
 		byte[] mensagemDescifrada = decifra();
+		System.out.println("TEXTO DESCIFRADO");
 		System.out.println("mensagem em texto: ");
 		System.out.println(new String(mensagemDescifrada, StandardCharsets.UTF_8));
 		System.out.println("mensagem descriptografada em Base64: ");
 		System.out.println(Base64.getEncoder().encodeToString(mensagemDescifrada));
 		System.out.println("mensagem descriptografada em hex:");
 		System.out.println(byteArrayToHexString(mensagemDescifrada));
+		System.out.println("byte -> hex -> texto plano: ");
+		System.out.println(fromHexString(byteArrayToHexString(mensagemDescifrada)));
 		System.out.println();
 
 		// inverte ela
 		// String novaMensagem = new String(mensagemDescifrada, StandardCharsets.UTF_8);
-		String novaMensagem = "teste";
+		String novaMensagem = new String(mensagemDescifrada, StandardCharsets.UTF_8);
 		novaMensagem = invercao(novaMensagem);
 		System.out.println("mensagem invertida: ");
 		System.out.println(novaMensagem);
@@ -110,7 +114,6 @@ public class Main {
 
 		// gera um novo IV aleatorio
 		geraIv();
-		S = IV;
 
 		// cifra ela para enviar
 		byte[] novaMensagembytes = cifra(novaMensagem);
@@ -118,6 +121,7 @@ public class Main {
 		System.out.println(Base64.getEncoder().encodeToString(novaMensagembytes));
 		System.out.println("mensagem criptografada em hex:");
 		System.out.println(byteArrayToHexString(novaMensagembytes));
+		System.out.println(byteArrayToHexString(IV) + byteArrayToHexString(novaMensagembytes));
 		System.out.println();
 
 	}
@@ -133,7 +137,13 @@ public class Main {
 			// EXECUTA O CIPHER
 			cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, ivParameterSpec);
 			// RETORNA DESCRIPTOGRAFADA
-			return cipher.doFinal(mensagemParaCriptografar.getBytes());
+			byte[] mensagemCriptografada = cipher.doFinal(mensagemParaCriptografar.getBytes());
+			// CONCATENA IV E A MENSAGEM CRIPTOGRAFADA
+			byte[] mensagemConcatenada = new byte[IV.length + mensagemCriptografada.length];
+			System.arraycopy(IV, 0, mensagemConcatenada, 0, IV.length);
+			System.arraycopy(mensagemCriptografada, 0, mensagemConcatenada, IV.length, mensagemCriptografada.length);
+
+			return mensagemConcatenada;
 		} catch (Exception ex) {
 			ex.printStackTrace();
 			// Operation failed
@@ -171,15 +181,21 @@ public class Main {
 	private static byte[] decifra() {
 		try {
 			// IV
+			// IvParameterSpec iv = new IvParameterSpec(mensagem, 0, 16);
 			IvParameterSpec iv = new IvParameterSpec(IV);
 			// CHAVE
+			// SecretKeySpec secretKeySpec = new SecretKeySpec(S, "AES");
 			SecretKeySpec secretKeySpec = new SecretKeySpec(S, "AES");
 			// DEFINE O CIPHER
-			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");
+			// Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+			Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
 			// EXECUTA O CIPHER
 			cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, iv);
 			// RETORNA DESCRIPTOGRAFADA
-			return cipher.doFinal(mensagem);
+			// return cipher.doFinal(mensagem, 16, mensagem.length - 16);
+			byte[] decrypted = cipher.doFinal(mensagem);
+			return decrypted;
+			// return cipher.doFinal(byteTexto);*/
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
@@ -188,27 +204,28 @@ public class Main {
 	}
 
 	private static void separacao(String mensagemDoProfessor, byte[] Scompleto) throws UnsupportedEncodingException {
-		System.out.println("dados obtidos da separacao (IV e mensagem em hexa): ");
 		// PRIMEIRO: obtencao do S
 		// pega os primeiros 128 bits do SHA para obter o S
-		S = Arrays.copyOf(Scompleto, 16);
+		S = Scompleto;
+		System.out.println("S em texto plano: " + new String(S, StandardCharsets.UTF_8));
 		System.out.println("S em hexa: " + byteArrayToHexString(S));
 		System.out.println("S em Base64: " + Base64.getEncoder().encodeToString(S));
-		System.out.println("S length: " + S.length);
 
 		// de string (hex) para byte array
-		byte[] mensagemBytes = mensagemDoProfessor.getBytes();
-
+		byte[] mensagemBytes = mensagemDoProfessor.getBytes("UTF-8");
 		// SEGUNDO: obtencao do IV
 		// separa os primeiros 128 bits
-		IV = Arrays.copyOf(mensagemBytes, 16);
+		System.arraycopy(mensagemBytes, 0, IV, 0, IV.length);
 		System.out.println("IV: " + byteArrayToHexString(IV));
 
 		// TERCEIRO: obtencao da mensagem
 		// bits apos os primeiros 128
-		mensagem = Arrays.copyOfRange(mensagemBytes, 16, mensagemBytes.length);
+		// Extract encrypted part.
+		int size = mensagemBytes.length - IV.length;
+		mensagem = new byte[size];
+		System.arraycopy(mensagemBytes, IV.length, mensagem, 0, size);
 		System.out.println("Mensagem: " + byteArrayToHexString(mensagem));
-		System.out.println();		
+		System.out.println();
 	}
 
 	private static byte[] passo3(BigInteger v) throws NoSuchAlgorithmException, UnsupportedEncodingException {
@@ -216,7 +233,9 @@ public class Main {
 		// usar os primeiros 128 bits como senha para se comunicar com o professor
 		MessageDigest digest = MessageDigest.getInstance("SHA-256");
 		digest.update(v.toByteArray());
-		return digest.digest();
+		byte[] keyBytes = new byte[16];
+		System.arraycopy(digest.digest(), 0, keyBytes, 0, keyBytes.length);
+		return keyBytes;
 	}
 
 	private static BigInteger passo2(String B, int a, String P) {
@@ -279,5 +298,13 @@ public class Main {
 			hexChars[j * 2 + 1] = hexArray[v & 0x0F]; // Select hex character from lower nibble
 		}
 		return new String(hexChars);
+	}
+
+	public static String fromHexString(String hex) {
+		StringBuilder str = new StringBuilder();
+		for (int i = 0; i < hex.length(); i += 2) {
+			str.append((char) Integer.parseInt(hex.substring(i, i + 2), 16));
+		}
+		return str.toString();
 	}
 }
